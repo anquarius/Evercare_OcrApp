@@ -1,0 +1,13 @@
+{
+    "ocrPage": {
+        "noImage": "冇相啊",
+        "fromCamera": "用相機影張相",
+        "fromDevice": "喺相簿揀張相",
+
+        "loading": "等一陣...",
+        "uploadImage": "沊張相上嚟，比返啲字你",
+
+        "back": "返去喇",
+        "instruction": "移去個框入面啦"
+    }
+}

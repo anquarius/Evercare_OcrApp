@@ -1,0 +1,13 @@
+{
+    "ocrPage": {
+        "noImage": "No image is uploaded",
+        "fromCamera": "Take a Photo",
+        "fromDevice": "Pick from Library",
+
+        "loading": "Loading...",
+        "uploadImage": "Upload a image to extract the strings",
+
+        "back": "Back",
+        "insideFrame": "Please move to the inside of the frame"
+    }
+}

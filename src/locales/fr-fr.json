@@ -1,0 +1,13 @@
+{
+    "ocrPage": {
+        "noImage": "Aucune image n'est téléchargée",
+        "fromCamera": "Prendre une photo",
+        "fromDevice": "Choisissez dans la bibliothèque d'appareils",
+
+        "loading": "Chargement...",
+        "uploadImage": "Télécharger une image pour extraire les chaînes",
+
+        "back": "Arrière",
+        "instruction": "Veuillez vous déplacer à l'intérieur du carré"
+    }
+}
