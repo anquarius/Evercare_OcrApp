@@ -1,4 +1,4 @@
-# Evercare_OcrApp
+# Evercare OcrApp
 The purpose of this project is to extract texts, using Google Cloud Vision API, from the uploaded image.
 
 ## Installation
