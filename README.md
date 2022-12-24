@@ -12,6 +12,7 @@ git clone https://github.com/anquarius/Evercare_OcrApp.git
 Change into the app directory and use package manager [yarn](https://classic.yarnpkg.com/lang/en/docs/install/#mac-stable) to install dependencies.
 If Node.js is not installed, please follow the link to download the [LTS version Node.js](https://nodejs.org/en/)
 ```bash
+npm install -g expo-cli
 cd Evercare_OcrApp
 yarn install #or yarn
 ```
