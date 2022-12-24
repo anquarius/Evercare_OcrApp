@@ -8,6 +8,6 @@
         "uploadImage": "Télécharger une image pour extraire les chaînes",
 
         "back": "Arrière",
-        "instruction": "Veuillez vous déplacer à l'intérieur du carré"
+        "insideFrame": "Veuillez vous déplacer à l'intérieur du carré"
     }
 }

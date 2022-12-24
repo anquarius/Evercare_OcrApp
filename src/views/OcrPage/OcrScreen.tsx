@@ -1,25 +1,80 @@
-import React, { createRef, useState, useEffect, useContext, useRef } from 'react';
-import { Alert, Animated, Dimensions, Easing, Image, LayoutAnimation, Linking, Modal, SafeAreaView, ScrollView, Text, TouchableOpacity, View, } from 'react-native';
+import React, { useState, useEffect, useContext, useRef } from 'react';
+import { Alert, Animated, Dimensions, Easing, Image, LayoutAnimation, Linking, Modal, SafeAreaView, ScrollView, Text, TouchableOpacity, TouchableWithoutFeedback, View, } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { useIsFocused } from '@react-navigation/native';
-import { Camera, CameraCapturedPicture, CameraType } from 'expo-camera';
+import { Camera, CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
 
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { AppDataContext } from '../MainDataContext';
 import { ocr } from '../../styles/ocr';
 import i18n from '../../locales/i18n';
+import { idText } from 'typescript';
 
 
 
+/* Parameters and Functions */
 const { height, width } = Dimensions.get("window");
 
-interface OcrPageProps {
-    navigation: any;
+const googleVision = {
+    request: "https://vision.googleapis.com/v1/images:annotate?key=",
+    // key: "AIzaSyB0XDD8hHI70e3LnAsMIYN6CglSxpFrMSS",  // Wrong Key, can try with the wrong key
+    key: "AIzaSyA9sF3mO35_BLGbsuOez8zyggvS87yEGJ0",     // True key
 };
 
+async function handleCameraModal (setCameraModal: Function) {
+
+    let { status } = await Camera.requestCameraPermissionsAsync();
+
+    if (status === "granted") {
+        setCameraModal(true);
+    } else if (status === "denied") {
+        Alert.alert( 
+            "Camera Access Denined",
+            "Please allow Expo Go to access device camera",
+            [
+                { text: "OK", },
+                { text: 'Settings', onPress: () => Linking.openSettings()},
+            ],
+            { cancelable: false }
+        )
+    }
+};
+
+async function handleTakePicture (camera: Camera|null, setImage: Function, setCameraModal: Function) {
+
+    const options: any = {
+        quality: 0.3,
+        base64: true,
+        exif: false,
+        flash: 'off',
+    };
+
+    let photo = await camera.takePictureAsync(options);
+    const base64 = photo.base64;
+    setImage(base64);
+    setCameraModal(false);
+};
+
+async function handlePickImage (setImage: Function) {
+
+    const options: any = {
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1.0,
+        base64: true,
+    };
+    
+    let photo = await ImagePicker.launchImageLibraryAsync(options);
+    // console.log("photo", photo)
+    if (!photo.canceled) {
+        const base64 = photo.assets[0].base64;
+        setImage(base64);
+    }
+};
+
+
+/* Components */
 function LanguageBar () {
 
     const rawLangRotate = useRef(new Animated.Value(0)).current;
@@ -40,16 +95,16 @@ function LanguageBar () {
             Animated.timing(rawLangRotate, {
                 toValue: 0,
                 duration: 200,
-                easing: Easing.linear, // Easing is an additional import from react-native
-                useNativeDriver: false,  // To make use of native driver for performance
+                easing: Easing.linear,
+                useNativeDriver: false,
               }
             ).start()
         } else {
             Animated.timing(rawLangRotate, {
                 toValue: 1,
                 duration: 200,
-                easing: Easing.linear, // Easing is an additional import from react-native
-                useNativeDriver: false,  // To make use of native driver for performance
+                easing: Easing.linear,
+                useNativeDriver: false,
               }
             ).start()
         }
@@ -61,7 +116,6 @@ function LanguageBar () {
        
         setLangExpand(!langExpand);
     };
-
 
     const handleLanguageChange = (language: string) => {
         Haptics.selectionAsync(); 
@@ -99,6 +153,59 @@ function LanguageBar () {
     )
 }
 
+
+/* APIs */
+async function callGoogleVisionApi (image: string, setVisionRes: Function, setVisionResFetched: Function, setVisionResWarning: Function) {
+        
+    let response = await fetch(googleVision.request + googleVision.key, 
+        {
+            method: 'POST',
+            body: JSON.stringify({
+                "requests": [
+                    {
+                        "image": {
+                            "content": image
+                        },
+                        "features": [
+                            { type: "TEXT_DETECTION" },
+                            { type: "DOCUMENT_TEXT_DETECTION" }
+                        ],
+                    }
+                ]
+            })
+        }
+    );
+
+    if (response.status === 400) {
+        setVisionRes("Failed to request API, may due to the invalid api key");
+        setVisionResFetched(true);
+    } else if (response.status === 200) {
+        await response.json()
+            .then(result => {
+                if (Object.keys(result.responses[0]).length > 0) {
+                    setVisionRes(result.responses[0].textAnnotations[0].description);
+                    setVisionResFetched(true);
+                } else {
+                    setVisionResWarning("No text is detected");
+                    setVisionResFetched(true);
+                }
+            }).catch((error) => {
+                setVisionResWarning("Unknown error, please try again");
+                console.log(error);
+                setVisionResFetched(true);
+            })
+    } else {
+        setVisionResWarning(`Failed to request API\nError codes: ${response.status}\nCheck the error detail in https://cloud.google.com/vision/docs/reference/rest/v1/Code`);
+        setVisionResFetched(true);
+    }
+    
+};
+
+
+interface OcrPageProps {
+    navigation: any;
+};
+
 export default function OcrScreen(props: OcrPageProps) {
 
     console.log("---Ocr Page---");
@@ -106,7 +213,6 @@ export default function OcrScreen(props: OcrPageProps) {
     /* Init */
     const { t } = useTranslation( "" , { keyPrefix: "ocrPage" });
     const data = useContext(AppDataContext);
-    const isFocused = useIsFocused();
 
 
     /* useState()s and useRef()s */
@@ -114,127 +220,19 @@ export default function OcrScreen(props: OcrPageProps) {
     const [cameraModal, setCameraModal] = useState<boolean>(false);
 
     const [image, setImage] = useState<string | null>(null);
+    const [imageModal, setImageModal] = useState<boolean>(false);
     const [visionRes, setVisionRes] = useState<string>("");
+    const [visionResWarning, setVisionResWarning] = useState<string>("");
     const [visionResFetched, setVisionResFetched] = useState<boolean>(false);
-
-
-
-    /* Parameters and Functions */
-    const googleVision = {
-        request: "https://vision.googleapis.com/v1/images:annotate?key=",
-        // key: "AIzaSyB0XDD8hHI70e3LnAsMIYN6CglSxpFrMSs",  // Wrong Key
-        key: "AIzaSyA9sF3mO35_BLGbsuOez8zyggvS87yEGJ0",     // True key
-        // key: "AIzaSyA9sF3mO35_BLGbsuOez8zyggvS87yEGJ1",     // Service Ac key
-
-    };
-
-    const handleCameraModal = async () => {
-
-        let { status } = await Camera.requestCameraPermissionsAsync();
-
-        if (status === "granted") {
-            setCameraModal(true);
-        } else if (status === "denied") {
-            Alert.alert( 
-                "Camera Access Denined",
-                "Please allow Expo Go to access device camera",
-                [
-                    { text: "OK", },
-                    { text: 'Settings', onPress: () => Linking.openSettings()},
-                ],
-                { cancelable: false }
-            )
-        }
-    };
-
-    const handleTakePicture = async () => {
-
-        const options: any = {
-            quality: 0.3,
-            base64: true,
-            exif: false,
-            flash: 'off',
-        };
-
-        let photo = await camera.takePictureAsync(options);
-        const base64 = photo.base64;
-        setImage(base64);
-
-        setCameraModal(false);
-    };
-
-    const handlePickImage = async () => {
-
-        const options: any = {
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.3,
-            base64: true,
-        };
-        
-        let photo = await ImagePicker.launchImageLibraryAsync(options);
-        console.log("photo", photo)
-        if (!photo.canceled) {
-            const base64 = photo.assets[0].base64;
-            setImage(base64);
-        }
-    };
-
-   
-    /* APIs */
-    const callGoogleVisionApi = async () => {
-        
-        let response = await fetch(googleVision.request + googleVision.key, 
-            {
-                method: 'POST',
-                body: JSON.stringify({
-                    "requests": [
-                        {
-                            "image": {
-                                "content": image
-                            },
-                            "features": [
-                                { type: "TEXT_DETECTION" },
-                                { type: "DOCUMENT_TEXT_DETECTION" }
-                            ],
-                        }
-                    ]
-                })
-            }
-        );
-        // console.log("response", JSON.stringify(response))
-        // console.log("json", await response.json())
-
-        if (response.status === 400) {
-            setVisionRes("Failed to request API, may due to the invalid api key");
-            setVisionResFetched(true);
-        } else if (response.status === 200) {
-            await response.json()
-                .then(result => {
-                    if (result) {
-                        console.log("json", result)
-                        setVisionRes(result.responses[0].textAnnotations[0].description);
-                        setVisionResFetched(true);
-                    }
-                }).catch((error) => {
-                    setVisionRes("Unknown error, please try again");
-                    setVisionResFetched(true);
-                })
-        } else {
-            setVisionRes(`Failed to request API\nError codes: ${response.status}\nCheck the error detail in https://cloud.google.com/vision/docs/reference/rest/v1/Code`);
-            setVisionResFetched(true);
-        }
-        
-    };
 
 
     /* useEffect()s */
     useEffect(() => {
         if (image) {
             setVisionResFetched(false);
-            setVisionRes(null);
-            callGoogleVisionApi();
+            setVisionRes("");
+            setVisionResWarning("");
+            callGoogleVisionApi(image, setVisionRes, setVisionResFetched, setVisionResWarning);
         }
     }, [ image ]);
 
@@ -246,12 +244,17 @@ export default function OcrScreen(props: OcrPageProps) {
             <LanguageBar />
             
             {/* Image */}
-            <View style={{ height: width-50, width: width-50, borderWidth: 1, borderRadius: 25, alignSelf: 'center',  }}>
+            <View style={[ocr.imageContainer, { height: width-50, width: width-50, }]}>
                 { image ?
-                    <Image style={{ height: '100%', width: '100%', borderRadius: 23, }} source={{ uri: "data:image/png;base64," + image }} /> 
+                    <TouchableOpacity 
+                     style={ocr.image}
+                     activeOpacity={0.7}
+                     onPress={() => setImageModal(true)}>
+                        <Image style={ocr.image} source={{ uri: "data:image/png;base64," + image }} /> 
+                    </TouchableOpacity>
                     : 
-                    <View style={{ height: '100%', width: '100%', justifyContent: 'center', alignItems: 'center', }}>
-                        <Text style={{ fontSize: 24, }}>{t('noImage')}</Text>
+                    <View style={ocr.messageContainer}>
+                        <Text style={ocr.message}>{t('noImage')}</Text>
                     </View>
                 }
             </View>
@@ -260,12 +263,17 @@ export default function OcrScreen(props: OcrPageProps) {
             <View style={{ height: '25%', paddingTop: 25, }}>
                 { image ? 
                     visionResFetched ?
-                        <ScrollView style={{ paddingHorizontal: 25, paddingVertical: 15, }}>
-                            <Text>{visionRes}</Text>
-                        </ScrollView>
+                        visionResWarning ?
+                            <View style={ocr.messageContainer}>
+                                <Text style={{ fontSize: 24, fontWeight: 'bold', color: 'red', }}>{visionResWarning}</Text>
+                            </View>
+                            :
+                            <ScrollView style={{ paddingHorizontal: 25, paddingVertical: 15, }}>
+                                <Text>{visionRes}</Text>
+                            </ScrollView>
                         :
-                        <View style={{ height: '100%', justifyContent: 'center', alignSelf: 'center', }}>
-                            <Text style={{ fontSize: 24, }}>{t('loading')}</Text>
+                        <View style={ocr.messageContainer}>
+                            <Text style={ocr.message}>{t('loading')}</Text>
                         </View>
                     :
                     <View style={{ height: '100%', justifyContent: 'center', alignSelf: 'center', paddingHorizontal: 25, }}>
@@ -274,33 +282,45 @@ export default function OcrScreen(props: OcrPageProps) {
                 }
             </View>
 
-            <View style={{ marginVertical: 15, marginHorizontal: 35, borderWidth: 0.5, }} />
+            <View style={ocr.border} />
 
             {/* Options */}
             <View>
                 <View
-                style={{ height: 50, width: 200, alignSelf: 'center', borderRadius: 25, backgroundColor: '#02af7c', marginBottom: 25, }}>
+                style={[ocr.optionContainer, { backgroundColor: image && !visionResFetched ? '#a00000' : '#02af7c', marginBottom: 25, }]}>
                     <TouchableOpacity
-                    style={{ height: '100%', width: '100%', borderRadius: 25, justifyContent: 'center', alignItems: 'center', }}
-                    onPress={() => handleCameraModal()}>
+                    style={ocr.optionInnerContainer}
+                    onPress={() => handleCameraModal(setCameraModal)}>
                         <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#ffffff' }}>
-                            {t('fromCamera')}
+                            {image && !visionResFetched ? t('loading') : t('fromCamera')}
                         </Text>
+                        
                     </TouchableOpacity>
                 </View>
 
                 <View
-                style={{ height: 50, width: 200, alignSelf: 'center', borderRadius: 25, backgroundColor: 'transparent', marginBottom: 0, }}>
+                style={ocr.optionContainer}>
                     <TouchableOpacity
-                    style={{ height: '100%', width: '100%', borderRadius: 25, borderWidth: 2, borderColor: '#02af7c', justifyContent: 'center', alignItems: 'center', }}
+                    style={[ocr.optionInnerContainer, { borderWidth: 2, borderColor: image && !visionResFetched ? '#a00000' : '#02af7c', }]}
                     activeOpacity={0.7}
-                    onPress={() => handlePickImage()}>
-                        <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#02af7c' }}>
-                            {t('fromDevice')}
+                    onPress={() => handlePickImage(setImage)}>
+                        <Text style={{ fontSize: 15, fontWeight: 'bold', color: image && !visionResFetched ? '#a00000' : '#02af7c' }}>
+                            {image && !visionResFetched ? t('loading') : t('fromDevice')}
                         </Text>
                     </TouchableOpacity>
                 </View>
             </View>
+            
+            {/* Full Size Image */}
+            <Modal
+             visible={imageModal}
+             animationType={'slide'}>
+                <View style={ocr.modalContainer}>
+                    <TouchableWithoutFeedback onPress={() => setImageModal(false)}>
+                        <Image style={{ height: '100%', resizeMode: 'contain', }} source={{ uri: "data:image/png;base64," + image }} /> 
+                    </TouchableWithoutFeedback>
+                </View>
+            </Modal>
 
             {/* Camera */}
             <Modal
@@ -310,23 +330,20 @@ export default function OcrScreen(props: OcrPageProps) {
                 <Camera 
                  style={{ height: '100%', width: '100%', }} 
                  type={CameraType.back} 
-                 ref={(ref) => setCamera(ref)} 
-                //  ratio={'1:1'} 
-                //  pictureSize={"Low"}
-                />
+                 ref={(ref) => setCamera(ref)} />
 
-                <View style={[ocr.MainContainer]}>
+                <SafeAreaView style={[ocr.modalContainer, { alignItems: 'center', }]}>
 
-                    <SafeAreaView style={{ width: '100%', }}>
+                    <View style={{ width: '100%', }}>
                         <TouchableOpacity 
                          style={{ width: 100, flexDirection: 'row', alignItems: 'center', padding: 15, }}
                          onPress={() => setCameraModal(false)}>
                             <Ionicons name="chevron-back" size={30} color="#FFFFFF" />
                             <Text style={{ fontSize: 18, color: '#FFFFFF', }}>{t('back')}</Text>
                         </TouchableOpacity>
-                    </SafeAreaView>
+                    </View>
                     
-                    <View style={{ height: '15%', width: '100%', alignItems: 'center', justifyContent: 'center', }}>
+                    <View style={{ height: '12.5%', width: '100%', alignItems: 'center', justifyContent: 'center', }}>
                         <Text style={{ color: '#FFFFFF', fontWeight: '500', fontSize: 18, }}>{t('insideFrame')}</Text>
                     </View>
 
@@ -334,20 +351,15 @@ export default function OcrScreen(props: OcrPageProps) {
                         <Image style={{ height: '100%', width: '100%', }} source={ require("../../assets/OcrPage/cameraFrame.png") } />
                     </View>
 
-                    <View style={{ height: '25%', width: 250, justifyContent: 'center', }}>
+                    <View style={{ height: '30%', width: 250, justifyContent: 'center', alignItems: 'center', }}>
                         <TouchableOpacity 
-                            style={{ 
-                                height: 75, 
-                                width: '100%', 
-                                justifyContent: 'center',
-                            }} 
-                            activeOpacity={0.6}
-                            onPress={() => handleTakePicture()}>
-                                <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' }}>{t('scan')}</Text>
+                            activeOpacity={0.7}
+                            onPress={() => handleTakePicture(camera, setImage, setCameraModal)}>
+                            <Ionicons name="scan-circle" size={100} color={'#ffffff'} />
                         </TouchableOpacity>
                     </View>
 
-                </View>
+                </SafeAreaView>
 
             </Modal>
 
