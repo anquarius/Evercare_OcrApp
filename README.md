@@ -4,7 +4,7 @@ The purpose of this project is to extract texts, using Google Cloud Vision API, 
 ## Installation
 First, download [Expo Go](https://apps.apple.com/us/app/expo-go/id982107779) in your iOS device
 
-Next, clone this repository and 
+Next, clone this repository 
 ```bash
 git clone https://github.com/anquarius/Evercare_OcrApp.git
 ```
