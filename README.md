@@ -25,3 +25,5 @@ Start the project using Expo-cli
 ```bash
 expo start
 ```
+
+A QR code will be shown in terminal, scan it using iPhone camera and Expo Go will automatically start the app
