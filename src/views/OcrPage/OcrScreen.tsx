@@ -42,7 +42,7 @@ async function handleCameraModal (setCameraModal: Function) {
     }
 };
 
-async function handleTakePicture (camera: Camera|null, setImage: Function, setCameraModal: Function) {
+async function handleTakePicture (camera: Camera|null, setImage: Function, setImageFetched: Function, setCameraModal: Function) {
 
     const options: any = {
         quality: 0.3,
@@ -51,26 +51,29 @@ async function handleTakePicture (camera: Camera|null, setImage: Function, setCa
         flash: 'off',
     };
 
+    setImageFetched(false);
     let photo = await camera.takePictureAsync(options);
     const base64 = photo.base64;
     setImage(base64);
+    setImageFetched(true);
     setCameraModal(false);
 };
 
-async function handlePickImage (setImage: Function) {
+async function handlePickImage (setImage: Function, setImageFetched: Function) {
 
     const options: any = {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 1.0,
         base64: true,
     };
-    
+
+    setImageFetched(false);
     let photo = await ImagePicker.launchImageLibraryAsync(options);
-    // console.log("photo", photo)
     if (!photo.canceled) {
         const base64 = photo.assets[0].base64;
         setImage(base64);
     }
+    setImageFetched(true);
 };
 
 
@@ -220,6 +223,7 @@ export default function OcrScreen(props: OcrPageProps) {
     const [cameraModal, setCameraModal] = useState<boolean>(false);
 
     const [image, setImage] = useState<string | null>(null);
+    const [imageFetched, setImageFetched] = useState<boolean>(true);
     const [imageModal, setImageModal] = useState<boolean>(false);
     const [visionRes, setVisionRes] = useState<string>("");
     const [visionResWarning, setVisionResWarning] = useState<string>("");
@@ -245,25 +249,32 @@ export default function OcrScreen(props: OcrPageProps) {
             
             {/* Image */}
             <View style={[ocr.imageContainer, { height: width-50, width: width-50, }]}>
-                { image ?
-                    <TouchableOpacity 
-                     style={ocr.image}
-                     activeOpacity={0.7}
-                     onPress={() => setImageModal(true)}>
-                        <Image style={ocr.image} source={{ uri: "data:image/png;base64," + image }} /> 
-                    </TouchableOpacity>
-                    : 
+                { !image && imageFetched ?
                     <View style={ocr.messageContainer}>
                         <Text style={ocr.message}>{t('noImage')}</Text>
                     </View>
+                    : imageFetched ?
+                        <TouchableOpacity 
+                        style={ocr.image}
+                        activeOpacity={0.7}
+                        onPress={() => setImageModal(true)}>
+                            <Image style={ocr.image} source={{ uri: "data:image/png;base64," + image }} /> 
+                        </TouchableOpacity>
+                        :
+                        <View style={ocr.messageContainer}>
+                            <Text style={ocr.message}>{t('loading')}</Text>
+                        </View>
                 }
             </View>
 
             {/* Text Recognition */}
             <View style={{ height: '25%', paddingTop: 25, }}>
                 { image ? 
-                    visionResFetched ?
-                        visionResWarning ?
+                    !visionResFetched || !imageFetched ?
+                        <View style={ocr.messageContainer}>
+                            <Text style={ocr.message}>{t('loading')}</Text>
+                        </View>
+                        : visionResWarning ?
                             <View style={ocr.messageContainer}>
                                 <Text style={{ fontSize: 24, fontWeight: 'bold', color: 'red', }}>{visionResWarning}</Text>
                             </View>
@@ -271,10 +282,7 @@ export default function OcrScreen(props: OcrPageProps) {
                             <ScrollView style={{ paddingHorizontal: 25, paddingVertical: 15, }}>
                                 <Text>{visionRes}</Text>
                             </ScrollView>
-                        :
-                        <View style={ocr.messageContainer}>
-                            <Text style={ocr.message}>{t('loading')}</Text>
-                        </View>
+                       
                     :
                     <View style={{ height: '100%', justifyContent: 'center', alignSelf: 'center', paddingHorizontal: 25, }}>
                         <Text style={{ fontSize: 24, }}>{t('uploadImage')}</Text>
@@ -285,32 +293,53 @@ export default function OcrScreen(props: OcrPageProps) {
             <View style={ocr.border} />
 
             {/* Options */}
-            <View>
-                <View
-                style={[ocr.optionContainer, { backgroundColor: image && !visionResFetched ? '#a00000' : '#02af7c', marginBottom: 25, }]}>
-                    <TouchableOpacity
-                    style={ocr.optionInnerContainer}
-                    onPress={() => handleCameraModal(setCameraModal)}>
-                        <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#ffffff' }}>
-                            {image && !visionResFetched ? t('loading') : t('fromCamera')}
-                        </Text>
-                        
-                    </TouchableOpacity>
-                </View>
+                { image && !visionResFetched ?
+                    <View>
+                        <View
+                        style={[ocr.optionContainer, { backgroundColor: '#a00000', marginBottom: 25, }]}>
+                            <View style={ocr.optionInnerContainer}>
+                                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#ffffff' }}>
+                                    {t('loading')}
+                                </Text>
+                                
+                            </View>
+                        </View>
 
-                <View
-                style={ocr.optionContainer}>
-                    <TouchableOpacity
-                    style={[ocr.optionInnerContainer, { borderWidth: 2, borderColor: image && !visionResFetched ? '#a00000' : '#02af7c', }]}
-                    activeOpacity={0.7}
-                    onPress={() => handlePickImage(setImage)}>
-                        <Text style={{ fontSize: 15, fontWeight: 'bold', color: image && !visionResFetched ? '#a00000' : '#02af7c' }}>
-                            {image && !visionResFetched ? t('loading') : t('fromDevice')}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-            
+                        <View style={ocr.optionContainer}>
+                            <View style={[ocr.optionInnerContainer, { borderWidth: 2, borderColor: '#a00000' }]}>
+                                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#a00000' }}>
+                                    {image && !visionResFetched ? t('loading') : t('fromDevice')}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                    :
+                    <View>
+                        <View
+                        style={[ocr.optionContainer, { backgroundColor: '#02af7c', marginBottom: 25, }]}>
+                            <TouchableOpacity
+                            style={ocr.optionInnerContainer}
+                            onPress={() => handleCameraModal(setCameraModal)}>
+                                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#ffffff' }}>
+                                    {image && !visionResFetched ? t('loading') : t('fromCamera')}
+                                </Text>
+                                
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={ocr.optionContainer}>
+                            <TouchableOpacity
+                             style={[ocr.optionInnerContainer, { borderWidth: 2, borderColor: '#02af7c', }]}
+                             activeOpacity={0.7}
+                             onPress={() => handlePickImage(setImage, setImageFetched)}>
+                                <Text style={{ fontSize: 15, fontWeight: 'bold', color:'#02af7c' }}>
+                                    {image && !visionResFetched ? t('loading') : t('fromDevice')}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                }
+                
             {/* Full Size Image */}
             <Modal
              visible={imageModal}
@@ -354,7 +383,7 @@ export default function OcrScreen(props: OcrPageProps) {
                     <View style={{ height: '30%', width: 250, justifyContent: 'center', alignItems: 'center', }}>
                         <TouchableOpacity 
                             activeOpacity={0.7}
-                            onPress={() => handleTakePicture(camera, setImage, setCameraModal)}>
+                            onPress={() => handleTakePicture(camera, setImage, setImageFetched, setCameraModal)}>
                             <Ionicons name="scan-circle" size={100} color={'#ffffff'} />
                         </TouchableOpacity>
                     </View>
