@@ -19,8 +19,7 @@ const { height, width } = Dimensions.get("window");
 
 const googleVision = {
     request: "https://vision.googleapis.com/v1/images:annotate?key=",
-    // key: "AIzaSyB0XDD8hHI70e3LnAsMIYN6CglSxpFrMSS",  // Wrong Key, can try with the wrong key
-    key: "AIzaSyA9sF3mO35_BLGbsuOez8zyggvS87yEGJ0",     // True key
+    key: "AIzaSyA9sF3mO35_BLGbsuOez8zyggvS87yEGJ0",    
 };
 
 async function handleCameraModal (setCameraModal: Function) {
